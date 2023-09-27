@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    fmt::Display,
-};
+use std::fmt::Display;
 
 use ransel::{rank::Rank, select::Select, sparse::Sparse};
 
@@ -10,18 +7,18 @@ use crate::dense::{DenseInterval, DenseStabby};
 /// The Interval struct represents a closed interval on an (unsigned) integer domain.
 #[derive(Clone, Copy, Eq, PartialOrd, Ord, Default, Hash, PartialEq, Debug)]
 pub struct Interval {
+    /// Lower bound of the interval
     pub first: u64,
+
+    /// Upper bound of the interval
     pub last: u64,
 }
 
 impl Interval {
+    /// create a new interval
     pub fn new(first: u64, last: u64) -> Interval {
         debug_assert!(first <= last);
         Interval { first, last }
-    }
-
-    pub fn zero() -> Interval {
-        Interval { first: 0, last: 0 }
     }
 }
 
@@ -31,6 +28,9 @@ impl Display for Interval {
     }
 }
 
+/// The Jens Schmidt data structure for representing a set of (closed)
+/// intervals over an unsigned integer domain.
+///
 pub struct Stabby {
     domain: Sparse,
     dense: DenseStabby,
@@ -38,6 +38,9 @@ pub struct Stabby {
 
 ///
 impl Stabby {
+    /// Create a new Stabby data structure. The list of intervals
+    /// must be in natural sorted order, and free of duplicates.
+    ///
     pub fn new(xs: &[Interval]) -> Stabby {
         let domain = Self::make_domain(xs);
         let mut ys: Vec<DenseInterval> = Vec::new();
@@ -71,11 +74,17 @@ impl Stabby {
         Sparse::new(b, n, &ys)
     }
 
+    /// Test if a position stabs any intervals.
+    ///
     pub fn stabs(&self, q: u64) -> bool {
         let qd = self.sparse_to_dense(q);
         self.dense.stabs(qd)
     }
 
+    /// Retrieve the list of intervals that are stabbed by
+    /// the given position. The intervals are returned in
+    /// sorted order.
+    ///
     pub fn stab(&self, q: u64) -> Vec<Interval> {
         let qd = self.sparse_to_dense(q);
         let ys = self.dense.stab(qd);
@@ -88,6 +97,9 @@ impl Stabby {
         xs
     }
 
+    /// Find the list of intervals that intersect the given query interval.
+    /// The results are returned in sorted order.
+    ///
     pub fn stab_interval(&self, q: &Interval) -> Vec<Interval> {
         let qd = DenseInterval::new(self.sparse_to_dense(q.first), self.sparse_to_dense(q.last));
         println!("qd = {:?}", qd);

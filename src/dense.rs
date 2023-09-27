@@ -83,15 +83,12 @@ impl DenseStabby {
         start2x.resize(q_max + 1, None);
 
         let mut parent: HashMap<DenseInterval, DenseInterval> = HashMap::new();
-        let mut children: HashMap<DenseInterval, Vec<DenseInterval>> = HashMap::new();
         let mut last: HashMap<DenseInterval, DenseInterval> = HashMap::new();
         let mut left: HashMap<DenseInterval, DenseInterval> = HashMap::new();
 
         let mut l: Listy<DenseInterval> = Listy::new();
         let mut saved: HashMap<DenseInterval, ListyElement<DenseInterval>> = HashMap::new();
         let mut rml: usize = 0;
-
-        let root = DenseInterval::zero();
 
         for q in 0..=q_max {
             match l.back() {
