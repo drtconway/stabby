@@ -55,8 +55,8 @@ fn make_smaller(
 #[derive(Debug)]
 pub struct DenseStabby {
     smaller: HashMap<DenseInterval, Vec<DenseInterval>>,
-    start: HashMap<usize, DenseInterval>,
-    start2: HashMap<usize, DenseInterval>,
+    start: Vec<Option<DenseInterval>>,
+    start2: Vec<Option<DenseInterval>>,
     parent: HashMap<DenseInterval, DenseInterval>,
     last: HashMap<DenseInterval, DenseInterval>,
     left: HashMap<DenseInterval, DenseInterval>,
@@ -69,18 +69,15 @@ impl DenseStabby {
         event.resize_with(q_max + 1, || Vec::new());
 
         for item in basic.iter() {
-            println!("queuing {}, {} ({})", item.first, item.last, q_max);
             event[item.last].push(*item);
             event[item.first].push(*item);
         }
 
-        let mut start: HashMap<usize, DenseInterval> = HashMap::new();
-        let mut startx: Vec<Option<DenseInterval>> = Vec::new();
-        startx.resize(q_max + 1, None);
+        let mut start: Vec<Option<DenseInterval>> = Vec::new();
+        start.resize(q_max + 1, None);
 
-        let mut start2: HashMap<usize, DenseInterval> = HashMap::new();
-        let mut start2x: Vec<Option<DenseInterval>> = Vec::new();
-        start2x.resize(q_max + 1, None);
+        let mut start2: Vec<Option<DenseInterval>> = Vec::new();
+        start2.resize(q_max + 1, None);
 
         let mut parent: HashMap<DenseInterval, DenseInterval> = HashMap::new();
         let mut last: HashMap<DenseInterval, DenseInterval> = HashMap::new();
@@ -94,14 +91,12 @@ impl DenseStabby {
             match l.back() {
                 None => {}
                 Some(a) => {
-                    start.insert(q, *a);
-                    startx[q] = Some(*a);
+                    start[q] = Some(*a);
                 }
             }
             while let Some(a) = event[q].pop() {
                 if a.first == q {
-                    start.insert(q, a);
-                    startx[q] = Some(a);
+                    start[q] = Some(a);
                     let ptr = l.push_back(a);
                     saved.insert(a, ptr);
                 } else {
@@ -130,13 +125,9 @@ impl DenseStabby {
                 rml += 1;
             }
             if basic[rml].first <= q {
-                start2.insert(q, basic[rml]);
-                start2x[q] = Some(basic[rml]);
+                start2[q] = Some(basic[rml]);
             }
         }
-
-        println!("start = {:?}", startx);
-        println!("start2 = {:?}", start2x);
 
         DenseStabby {
             smaller: smaller,
@@ -151,90 +142,67 @@ impl DenseStabby {
     /// A quick test to see if a position is included in any intervals
     /// without determining which specific intervals.
     pub fn stabs(&self, q: usize) -> bool {
-        self.start.contains_key(&q)
+        q < self.start.len() && self.start[q].is_some()
     }
 
     pub fn stab(&self, q: usize) -> Vec<DenseInterval> {
         let mut res: Vec<DenseInterval> = Vec::new();
+        if q >= self.start.len() {
+            return res;
+        }
+
         let mut kew: VecDeque<DenseInterval> = VecDeque::new();
-        let mut ov: Option<&DenseInterval> = self.start.get(&q);
-        loop {
-            match ov {
-                None => {
-                    break;
-                }
-                Some(v) => {
-                    if *v == DenseInterval::zero() {
-                        break;
-                    }
-                    kew.push_front(*v);
-                    ov = self.parent.get(v);
-                }
+        let mut ov: Option<DenseInterval> = self.start[q].clone();
+        while let Some(v) = ov {
+            if v == DenseInterval::zero() {
+                break;
             }
+            kew.push_front(v);
+            ov = self.parent.get(&v).copied();
         }
-        loop {
-            match kew.pop_back() {
-                None => {
-                    break;
-                }
-                Some(a) => {
-                    res.push(a);
-                    match self.smaller.get(&a) {
-                        None => {}
-                        Some(s) => {
-                            for r in s.iter().rev() {
-                                if r.last < q {
-                                    break;
-                                }
-                                res.push(*r);
-                            }
+        while let Some(a) = kew.pop_back() {
+            res.push(a);
+            match self.smaller.get(&a) {
+                None => {}
+                Some(s) => {
+                    for r in s.iter().rev() {
+                        if r.last < q {
+                            break;
                         }
-                    }
-                    let mut ot = self.left.get(&a);
-                    loop {
-                        match ot {
-                            None => {
-                                break;
-                            }
-                            Some(t) => {
-                                if t.last < q {
-                                    break;
-                                }
-                                kew.push_back(*t);
-                                ot = self.last.get(t);
-                            }
-                        }
+                        res.push(*r);
                     }
                 }
             }
+            let mut ot = self.left.get(&a);
+            while let Some(t) = ot {
+                if t.last < q {
+                    break;
+                }
+                kew.push_back(*t);
+                ot = self.last.get(t);
+            }
         }
+
         res.reverse();
         res
     }
 
     pub fn stab_interval(&self, qi: &DenseInterval) -> Vec<DenseInterval> {
         let lq = qi.first;
-        let rq = qi.last;
-
-        let mut ot: Option<&DenseInterval> = None;
-        match self.start.get(&lq) {
-            None => {}
-            Some(u) => {
-                ot = Some(u);
-            }
+        let rq = std::cmp::min(qi.last, self.start.len() - 1);
+        if lq >= self.start.len() || rq < lq {
+            return Vec::new();
         }
-        match self.start2.get(&rq) {
-            None => {}
-            Some(u) => match ot {
-                None => {
+
+        let mut ot: Option<DenseInterval> = self.start[lq];
+        if let Some(u) = self.start2[rq] {
+            if let Some(t) = ot {
+                if t.first < u.first {
                     ot = Some(u);
                 }
-                Some(t) => {
-                    if t.first < u.first {
-                        ot = Some(u);
-                    }
-                }
-            },
+            } else {
+                ot = Some(u);
+            }
         }
 
         let mut res: Vec<DenseInterval> = Vec::new();
@@ -250,60 +218,39 @@ impl DenseStabby {
         }
 
         let mut kew: VecDeque<DenseInterval> = VecDeque::new();
-        loop {
-            match ot {
-                None => {
-                    break;
-                }
-                Some(t) => {
-                    if *t == DenseInterval::zero() {
-                        break;
-                    }
-                    kew.push_front(*t);
-                    ot = self.parent.get(&t);
-                }
+        while let Some(t) = ot {
+            if t == DenseInterval::zero() {
+                break;
             }
+            kew.push_front(t);
+            ot = self.parent.get(&t).copied();
         }
 
-        loop {
-            match kew.pop_back() {
-                None => {
-                    break;
-                }
-                Some(a) => {
-                    res.push(a);
+        while let Some(a) = kew.pop_back() {
+            res.push(a);
 
-                    match self.smaller.get(&a) {
-                        None => {}
-                        Some(s) => {
-                            for r in s.iter().rev() {
-                                if r.last < lq {
-                                    break;
-                                }
-                                res.push(*r);
-                            }
+            match self.smaller.get(&a) {
+                None => {}
+                Some(s) => {
+                    for r in s.iter().rev() {
+                        if r.last < lq {
+                            break;
                         }
-                    }
-
-                    ot = self.left.get(&a);
-
-                    loop {
-                        match ot {
-                            None => {
-                                break;
-                            }
-                            Some(t) => {
-                                if t.last < lq {
-                                    break;
-                                }
-                                kew.push_back(*t);
-                                ot = self.last.get(t);
-                            }
-                        }
+                        res.push(*r);
                     }
                 }
             }
+
+            ot = self.left.get(&a).copied();
+            while let Some(t) = ot {
+                if t.last < lq {
+                    break;
+                }
+                kew.push_back(t);
+                ot = self.last.get(&t).copied();
+            }
         }
+
         res.reverse();
         res
     }
