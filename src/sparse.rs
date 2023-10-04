@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use ransel::{rank::Rank, select::Select, sparse::Sparse};
+use ransel::{rank::Rank, select::Select, sorted::Sorted};
 
 use crate::dense::{DenseInterval, DenseStabby};
 
@@ -32,7 +32,7 @@ impl Display for Interval {
 /// intervals over an unsigned integer domain.
 ///
 pub struct Stabby {
-    domain: Sparse,
+    domain: Sorted,
     dense: DenseStabby,
 }
 
@@ -59,7 +59,7 @@ impl Stabby {
         Stabby { domain, dense }
     }
 
-    fn make_domain(xs: &[Interval]) -> Sparse {
+    fn make_domain(xs: &[Interval]) -> Sorted {
         let mut ys: Vec<u64> = Vec::new();
         ys.push(0);
         for x in xs.iter() {
@@ -68,10 +68,7 @@ impl Stabby {
         }
         ys.sort();
         ys.dedup();
-        let x = 1 + *ys.last().unwrap();
-        let b = 1 + (64 - x.leading_zeros()) as usize;
-        let n = ys.len();
-        Sparse::new(b, n, &ys)
+        Sorted::new(&ys)
     }
 
     /// Test if a position stabs any intervals.
