@@ -22,6 +22,12 @@ impl Interval {
     }
 }
 
+impl From<(u64, u64)> for Interval {
+    fn from(value: (u64, u64)) -> Self {
+        Interval::new(value.0, value.1)
+    }
+}
+
 impl Display for Interval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}, {}]", self.first, self.last)
